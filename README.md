@@ -1,3 +1,4 @@
 # Object Detection Production Code
-Any code related to YOLO
+This branch will hold the code that is consider finalized
+- Any code related to YOLO
 
