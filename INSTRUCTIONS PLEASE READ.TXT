@@ -1,0 +1,18 @@
+IMPORTANT COMMANDS TO USE:
+____________________________________________
+
+
+1) RUN PYTHON TO CAPTURE BOTH IR AND RGB IMAGES AS JPEG
+	-ensure the correct path is specified under the file variables
+	-'q' will not always work to terminate the program. In which case run ctrl+c to stop
+	
+
+python3 /home/nvidia/Documents/Flir_test_2.py
+
+
+
+2) TEST OUT THE CAMERAS USING GUI
+
+qv4l2
+
+

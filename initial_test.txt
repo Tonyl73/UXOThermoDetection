@@ -1,0 +1,3 @@
+gst-launch-1.0 v4l2src io-mode=4 device=/dev/video0 do-timestamp=true ! 'video/x-raw, width=1920, height=1080, framerate=60/1, format=UYVY' ! xvimagesink sync=false
+
+gst-launch-1.0 v4l2src io-mode=4 device=/dev/video1 do-timestamp=true ! 'video/x-raw, width=512, height=640, framerate=60/1, format=Y16' ! xvimagesink sync=false
