@@ -5,6 +5,14 @@ import numpy as np
 import time
 import datetime
 import new_method as track
+import transformations as convert
+from ublox_gps import UbloxGps
+import serial
+
+
+port = serial.Serial('/dev/ttyACM1', baudrate=38400, timeout=1)
+gps = UbloxGps(port)
+
 
 IR = cv2.VideoCapture(1)
 RGB = cv2.VideoCapture(0)
@@ -24,19 +32,22 @@ test_num = input('Select test number  ')
 
 folder = f'/home/nvidia/Documents/IR_test{test_num}/'
 folder_rgb = f'/home/nvidia/Documents/RGB_test{test_num}/'
-
-os.mkdir(folder)
-os.mkdir(folder_rgb)
+coords = gps.geo_coords()
+#os.mkdir(folder)
+#os.mkdir(folder_rgb)
 
 num = 0
+
+frameCount = 0
 
 try:
     while True:#record indefinitely (until user presses q), replace with "while True"
         ir_stream_ret, frame1 = IR.read()
-
+		
         rgb_stream_ret, frame2 = RGB.read()
 
         frame2,UNCROPPED =track.crop_and_scale_rgb(frame2)
+        
         
         if ir_stream_ret and rgb_stream_ret:
 
@@ -47,17 +58,33 @@ try:
             #cv2.imshow('IR feed cool',FRAME_IR_COOL)
             cv2.imshow('IR feed',FRAME_IR)
         
-           
+            print(f'Frame #{frameCount}')
             print('Working')
-            print(BOXES)
+            print(f'Boxes:{BOXES}')
+            corners = track.find_corners(BOXES)
+            print(f'Corners: {corners}')
+            objectLocations = convert.returnSpatialLocation(corners, frame1)
+            print(f'Locations: {objectLocations}')
             ts = time.time()	
             st = datetime.datetime.fromtimestamp(ts).strftime('%d-%m-%Y_%H-%M-%S')
+            
+            DETECTION = ((len(BOXES) != 0) and (frameCount > 100))
+            print(f'Detection: {DETECTION}')
+            
+            if DETECTION:
+                goodDetection = input("Is this a valid detection?")
+                goodDetection = bool(goodDetection)
+                lon1 = coords.lon
+                lat1 = coords.lat
+                print(lat1,lon1)
 
             if num%10 == 0: #set interval between saved frames here
                 #cv2.imwrite(folder + st + ".jpg",frame1)
                 #cv2.imwrite(folder_rgb + st + ".jpg",UNCROPPED)
                 time.sleep(.01)   
             num += 1
+            
+        frameCount = frameCount + 1
             
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

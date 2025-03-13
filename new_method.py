@@ -3,6 +3,17 @@ import numpy as np
 
 scale_factor = 0.65
 
+def find_corners(box_array):
+    num_boxes = len(box_array)
+    corners = []
+    for i in range(0, num_boxes):
+        maxX = np.max(box_array[i][:,0])
+        maxY = np.max(box_array[i][:,1])
+        minX = np.min(box_array[i][:,0])
+        minY = np.min(box_array[i][:,1])
+        corners.append([minX, minY, maxX, maxY])
+    return corners
+		
 
 
 def crop_and_scale_rgb(RGB_IMAGE):
@@ -168,4 +179,3 @@ def detect_object_RGB(INPUT_IMAGE):
         cv2.drawContours(IMAGE, [box], 0, (0, 0, 255), 2)
 
     return IMAGE
-

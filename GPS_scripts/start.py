@@ -3,7 +3,7 @@ import serial
 # Can also use SPI here - import spidev
 # I2C is not supported
 
-port = serial.Serial('/dev/ttyACM0', baudrate=38400, timeout=1)
+port = serial.Serial('/dev/ttyACM1', baudrate=38400, timeout=1)
 gps = UbloxGps(port)
 
 def run():
