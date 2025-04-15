@@ -15,7 +15,7 @@ RGB.set(cv2.CAP_PROP_CONVERT_RGB, 1)
 
 IR.set(cv2.CAP_PROP_FRAME_HEIGHT, 512) #use 256 for Boson 320
 IR.set(cv2.CAP_PROP_FRAME_WIDTH, 640) #use 320 for Boson 320
-IR.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y','1','6',' '))
+IR.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y','U','1','2'))
 IR.set(cv2.CAP_PROP_CONVERT_RGB, 0)
 
 
@@ -23,13 +23,12 @@ test_num = input('Select test number  ')
 
 
 folder = f'/home/nvidia/Documents/IR_test{test_num}/'
-os.mkdir(folder)
-#folder_rgb = f'/home/nvidia/Documents/RGB_test{test_num}/'
+folder_rgb = f'/home/nvidia/Documents/RGB_test{test_num}/'
 folder1 = f'/home/nvidia/Documents/Temperature{test_num}/'
 
-
+os.mkdir(folder)
 os.mkdir(folder1)
-#os.mkdir(folder_rgb)
+os.mkdir(folder_rgb)
 
 num = 0
 
@@ -46,14 +45,15 @@ try:
             ts = time.time()	
             st = datetime.datetime.fromtimestamp(ts).strftime('%d-%m-%Y_%H-%M-%S')
 	   
-            if num% 10 == 0: #set interval between saved frames here
+            #if num% 10 == 0: #set interval between saved frames here
+            if cv2.waitKey(1) & 0xFF == ord('t'):
                 ir_frame = folder + st
                 temp_frame = folder1 + st
-                #rgb_frame = folder_rgb + st 
+                rgb_frame = folder_rgb + st 
 
                 cv2.imwrite(ir_frame + ".jpg",gray_scale_image)
                 cv2.imwrite(temp_frame + ".png", frame1)
-                #cv2.imwrite(rgb_frame + ".jpg",frame2)
+                cv2.imwrite(rgb_frame + ".jpg",frame2)
                 time.sleep(.01)
                 
                 print('saved')

@@ -8,8 +8,8 @@ import cv2
 # Can also use SPI here - import spidev
 # I2C is not supported
 try:
-    ard_port = serial.Serial('/dev/ttyACM1', baudrate=115200, timeout=1)
-    gps_port = serial.Serial('/dev/ttyACM2', baudrate=38400, timeout=1)
+    ard_port = serial.Serial('/dev/device_ECDA3B60BB24', baudrate=115200, timeout=1)
+    gps_port = serial.Serial('/dev/device_01a9', baudrate=38400, timeout=1)
     gps = UbloxGps(gps_port)
 
 except serial.SerialException as e:
@@ -83,24 +83,27 @@ def calculate_bearing(point1,point2):
 
 frameCooldown = 0
 totalDetections = 0
+
 try: 
 	pointA =()
 	pointB =()
-	
-	if input("input any key for point distance"):
-		if input('type 1 to set first point'):
-			coords = gps.geo_coords()
-			pointA = (coords.lat, coords.lon)
-		if input('type 1 to set second point'):
-			coords = gps.geo_coords()
-			pointB = (coords.lat, coords.lon)
+	mode = input("input '1' to perform a point to point gps test , input '2' to test ryans transform code ")
+	if mode == '1':
+		while pointA == ():
+			if input('input 1 to set first point ') == '1':
+				coords = gps.geo_coords()
+				pointA = (coords.lat, coords.lon)
+		while pointB == ():
+			if input('input 1 to set second point'):
+				coords = gps.geo_coords()
+				pointB = (coords.lat, coords.lon)
 		
 		print(f"bearing :{calculate_bearing(pointA,pointB)} degrees")
 		print(f"distance: {geodesic(pointA,pointB).meters} meters")
 	
 	
 	
-	else:		
+	elif mode == '2':		
 	
 		coords = gps.geo_coords()
 		pointA = (coords.lat, coords.lon)
@@ -121,7 +124,7 @@ try:
 				print(f'Locations: {objectLocations}')
 				
 				
-				DETECTION = ((len(BOXES) != 0) and (frameCooldown > 60))
+				DETECTION = ((len(BOXES) != 0) and (frameCooldown > 70))
 				print(f'Detection: {DETECTION}')
 				
 				if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -131,7 +134,7 @@ try:
 					totalDetections = totalDetections + 1
 					frameCooldown = 30
 					print(f"Detection #{totalDetections}")
-					goodDetection = input("Is this a valid detection?")
+					goodDetection = input("Is this a valid detection?, input anything for yes ")
 					goodDetection = bool(goodDetection)
 					if goodDetection == True:
 						pointB = send_target_location()
@@ -148,6 +151,7 @@ except KeyboardInterrupt:
 	pass
 
 finally:
+	
 	print('done')
 	ard_port.close()
 	gps_port.close()

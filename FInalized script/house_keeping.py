@@ -53,14 +53,18 @@ def input_exif_data(file_ir,file_rgb,csv_to_use):
 		for i,line in enumerate(reader):
 			IR_to_add_exif = file_ir + f'Image #:{i}.jpg'
 			RGB_to_add_exif =  file_rgb+f'Image #:{i}.jpg'
+			
 			with open(IR_to_add_exif, 'rb') as img1, open(RGB_to_add_exif,'rb') as img2:
+				
 				ir_image = Image(img1)
 				rgb_image = Image(img2)
+				
 				ir_image.gps_latitude = line[0]
 				ir_image.gps_latitude_ref = line[3]
 				ir_image.gps_longitude = line[1]
 				ir_image.gps_longitude_ref = line[4]
 				ir_image.datetime = line[2]
+				#ir_image.maker_note = line[5]
 				rgb_image.gps_latitude = line[0]
 				rgb_image.gps_latitude_ref = line[3]
 				rgb_image.gps_longitude = line[1]
@@ -71,3 +75,5 @@ def input_exif_data(file_ir,file_rgb,csv_to_use):
 				final_ir_exif.write(ir_image.get_file())
 				final_rgb_exif.write(rgb_image.get_file())
 				
+
+	

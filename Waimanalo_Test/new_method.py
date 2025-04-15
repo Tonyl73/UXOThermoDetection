@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-scale_factor = 0.65
+scale_factor = 0.67
 
 def find_corners(box_array):
     num_boxes = len(box_array)
@@ -35,7 +35,7 @@ def crop_and_scale_rgb(RGB_IMAGE):
     
   
 
-def detect_object_IR(INPUT_IMAGE):
+def detect_object_IR(INPUT_IMAGE,CANVAS_IMAGE):
    
    
     SMOOTHED_IMAGE = cv2.medianBlur(INPUT_IMAGE, 3)
@@ -46,10 +46,11 @@ def detect_object_IR(INPUT_IMAGE):
     #kernel = np.ones((5, 5), np.uint8) 
     #IMAGE_WITH_THICK_EDGES = cv2.dilate(IMAGE_WITH_EDGES_SHOWN, kernel, iterations=1)
 
-    _, BLACK_AND_WHITE_IMAGE = cv2.threshold(SMOOTHED_IMAGE, 120, 255, cv2.THRESH_BINARY)
+    _, BLACK_AND_WHITE_IMAGE = cv2.threshold(SMOOTHED_IMAGE, 200, 255, cv2.THRESH_BINARY)
   
     _,INITIAL_CONTOURS, _ = cv2.findContours(BLACK_AND_WHITE_IMAGE, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     print (len(INITIAL_CONTOURS))
+    
     #cv2.imshow('hot',BLACK_AND_WHITE_IMAGE)
     
     LARGE_AREA_CONTOURS = [contour for contour in INITIAL_CONTOURS if 300 < cv2.contourArea(contour) < 7000]
@@ -57,6 +58,7 @@ def detect_object_IR(INPUT_IMAGE):
     print (len(LARGE_AREA_CONTOURS))
 
     FINAL_CONTOURS = []
+    centers = []
     '''for contour in LARGE_AREA_CONTOURS:
         mask = np.zeros_like(GREYSCALE_IMAGE, dtype=np.uint8)
         cv2.drawContours(mask, [contour], -1, 255, thickness=cv2.FILLED)
@@ -64,10 +66,12 @@ def detect_object_IR(INPUT_IMAGE):
         if np.count_nonzero(overlap) > 200:  
             FINAL_CONTOURS.append(contour)'''
     
-    BEST_RECTANGLE = .4
+    BEST_RECTANGLE = .35
 
     for contour in LARGE_AREA_CONTOURS:
         x, y, w, h = cv2.boundingRect(contour)
+        center_x, center_y = x + w//2, y + h//2
+        centers.append((center_x,center_y))
         ASPECT_RATIO = max(w, h) / min(w, h)
         AREA = cv2.contourArea(contour)
         BOUNDING_BOX_AREA = w * h
@@ -82,13 +86,16 @@ def detect_object_IR(INPUT_IMAGE):
     
     box_locations = []
     
+    i = 0
     for contour in FINAL_CONTOURS:
+        i = i + 1
         rect = cv2.minAreaRect(contour)
         box = np.int0(cv2.boxPoints(rect))
         box_locations.append(box)
-        cv2.drawContours(INPUT_IMAGE, [box], 0, (0, 0, 255), 2)
+        cv2.putText(CANVAS_IMAGE, f"Box {i}" , tuple(box[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,255,0), 1)
+        cv2.drawContours(CANVAS_IMAGE, [box], 0, (0, 0, 255), 2)
 
-    return INPUT_IMAGE, box_locations
+    return CANVAS_IMAGE, box_locations, centers
 
 
 
@@ -130,52 +137,44 @@ def detect_object_IR_cool(IMAGE):
         cv2.drawContours(IMAGE, [box], 0, (0, 0, 255), 2)
     return IMAGE
 
-def detect_object_RGB(INPUT_IMAGE):
+def enhance_greyscale(greyscale_img, temp_img, gradient_scale=50,delta=6):
+
    
-    IMAGE = INPUT_IMAGE
-
-    if IMAGE is None:
-        raise ValueError("err")
-
+    temp_img = temp_img.astype(np.float32) 
+    grad_x = np.abs(temp_img[:,delta:] - temp_img[:,:-delta])
+    grad_y = np.abs(temp_img[delta:,:] - temp_img[:-delta,:])
     
-
-    IMAGE_IN_HSV = cv2.cvtColor(IMAGE, cv2.COLOR_BGR2HSV)
-
-    cv2.imshow('hsv',IMAGE_IN_HSV)
-    LOWER_BOUND_COLOR = np.array([90, 0, 0])
-    UPPER_BOUND_COLOR = np.array([150, 250, 250])
-    MASK = cv2.inRange(IMAGE_IN_HSV, LOWER_BOUND_COLOR, UPPER_BOUND_COLOR)
-
-    result = cv2.bitwise_and(IMAGE, IMAGE, mask=MASK)
-    GREYSCALE_IMAGE = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
-
-    _, BLACK_AND_WHITE_IMAGE = cv2.threshold(GREYSCALE_IMAGE, 100, 255, cv2.THRESH_BINARY)
-
-    _,INITIAL_CONTOURS, _ = cv2.findContours(BLACK_AND_WHITE_IMAGE, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    grad_x = np.pad(grad_x, ((0,0), (delta,0)), mode ='edge')
+    grad_y = np.pad(grad_y, ((delta,0),(0,0)), mode ='edge')
     
-    LARGE_AREA_CONTOURS = [contour for contour in INITIAL_CONTOURS if 800 < cv2.contourArea(contour) < 7000]
+    temp_gradient = np.sqrt(grad_x**2 + grad_y**2)
 
-    print(len(LARGE_AREA_CONTOURS))
 
-    BEST_RECTANGLE = .4 
-    FINAL_CONTOURS = []
+    temp_gradient = (temp_gradient - np.min(temp_gradient)) / (np.max(temp_gradient) - np.min(temp_gradient) + 1e-6)
+    
+    temp_gradient *= gradient_scale
 
-    for contour in LARGE_AREA_CONTOURS:
-        x, y, w, h = cv2.boundingRect(contour)
-        ASPECT_RATIO = max(w, h) / min(w, h)
-        AREA = cv2.contourArea(contour)
-        BOUNDING_BOX_AREA = w * h
-        RECTANGLE_SCORE = (AREA / BOUNDING_BOX_AREA) * (1 / ASPECT_RATIO)
+ 
+    enhanced_img = greyscale_img - temp_gradient
+    enhanced_img = np.clip(enhanced_img, 0, 255).astype(np.uint8)
 
-        if RECTANGLE_SCORE > BEST_RECTANGLE:
-            
-            FINAL_CONTOURS = [contour] 
+    return enhanced_img
 
-    print(len(FINAL_CONTOURS))
 
-    for contour in FINAL_CONTOURS:
-        rect = cv2.minAreaRect(contour)
-        box = np.int0(cv2.boxPoints(rect))
-        cv2.drawContours(IMAGE, [box], 0, (0, 0, 255), 2)
-
-    return IMAGE
+def mask_green(rgb_img, greyscale_img):
+ 
+   
+    hsv_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2HSV)
+    
+   
+    lower_green = np.array([30, 40, 40])   
+    upper_green = np.array([90, 255, 255]) 
+    
+   
+    mask = cv2.inRange(hsv_img, lower_green, upper_green)
+    
+   
+    greyscale_masked = greyscale_img.copy()
+    greyscale_masked[mask > 0] = 0
+    
+    return greyscale_masked

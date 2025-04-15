@@ -4,9 +4,7 @@ import cv2
 import numpy as np
 import time
 import datetime
-import threading 
-#import new_method as track
-import Test_method as track
+import new_method as track
 import transformations as convert
 import house_keeping as clean
 from ublox_gps import UbloxGps
@@ -15,6 +13,7 @@ import serial
 
 
 # Initialize GPS and Arduino ports, make sure to close the Arduino port prior to opening GPS
+
 try:
     ard_port = serial.Serial('/dev/device_ECDA3B60BB24', baudrate=115200, timeout=1)
     gps_port = serial.Serial('/dev/device_01a9', baudrate=38400, timeout=1)
@@ -27,7 +26,7 @@ except serial.SerialException as e:
 
 
 
-test_num,folder_ir,folder_rgb, folder_temperatures,csv_filename = clean.prepare_directory()
+test_num,folder_ir,folder_rgb, folder_temperatures,folder_extra, csv_filename = clean.prepare_directory()
 
 
 
@@ -43,6 +42,7 @@ IR.set(cv2.CAP_PROP_CONVERT_RGB, 0)
 
 
 
+coords = gps.geo_coords()
 
 
 
@@ -50,17 +50,7 @@ num = 0
 image_num = 0
 frameCooldown = 0
 totalDetections = 0
-current_lat, current_lon = None, None
 
-def collect_lat_lon():
-	global gps
-	global current_lat
-	global current_lon
-	while True:
-		coords = gps.geo_coords()
-		if coords:
-			current_lat = coords.lat
-			current_lon = coords.lon
 
 def send_target_location():
     #Default state entering this function: GPS port is open, Arduino port is closed, box is detected and verified
@@ -92,11 +82,8 @@ def send_target_location():
 	else:
 		print("Didn't receive response from Arduino")
 	#time.sleep(1)
-	
-thread = threading.Thread(target= collect_lat_lon,daemon = True)
-print('starting')
-thread.start()
-print(thread.is_alive())
+
+
 try:
 	with open(csv_filename,'w',newline='') as csv_file:
 		writer = csv.writer(csv_file)
@@ -111,11 +98,17 @@ try:
 			
 			if ir_stream_ret and rgb_stream_ret:
 				
-				#grey_scale_image1 =track.enhance_greyscale(grey_scale_image,frame1)
+				grey_scale_image1 =track.enhance_greyscale(grey_scale_image,frame1)
 				
-				#cv2.imshow('enhanced', grey_scale_image1)
-			
-				grey_scale_image3 ,BOXES, centers  = track.detect_object_IR(grey_scale_image ,grey_scale_image)
+				cv2.imshow('enhanced', grey_scale_image1)
+				
+				grey_scale_image2 = track.mask_green(frame2,grey_scale_image1)
+				
+				cv2.imshow('no green', grey_scale_image2)
+				
+				grey_scale_image ,BOXES, centers  = track.detect_object_IR(grey_scale_image1 ,grey_scale_image)
+				
+				#FRAME_IR_COOL = track.detect_object_IR_cool(frame1)
 				
 				
 				clean.show_screens(frame2,grey_scale_image)
@@ -155,28 +148,27 @@ try:
 						print("Sending to Arduino")
 						send_target_location()'''
 
-				if num%5 == 0: #set interval between saved frames here
-					final_image_ir = folder_ir +f'Image_IR #:{image_num}' + ".jpg"
-					final_image_rgb = folder_rgb + f'Image_RGB #:{image_num}' +  ".jpg"
+				if num%10 == 0: #set interval between saved frames here
+					final_image_ir = folder_ir +f'Image #:{image_num}' + ".jpg"
+					final_image_rgb = folder_rgb + f'Image #:{image_num}' +  ".jpg"
 					final_temperature_frame = folder_temperatures + f'Image #:{image_num}' + '.png'
+					final_extra = folder_extra + f'Image #:{image_num}' +  ".jpg"
 					cv2.imwrite(final_image_ir,grey_scale_image)
 					cv2.imwrite(final_image_rgb,UNCROPPED)
 					cv2.imwrite(final_temperature_frame,frame1)
-					
-					if current_lat < 0:
+					cv2.imwrite(final_extra, grey_scale_image1)
+					if coords.lat < 0:
 						ref_lat = 'S'
 					else:
 						ref_lat = 'N'
-					if current_lon < 0:
+					if coords.lon < 0:
 						ref_lon = 'W'
 					else:
 						ref_lon = 'E'
-						
-					writer.writerow([np.abs(current_lat),np.abs(current_lon),ref_lat,ref_lon,tuple(center_temps)])
+					writer.writerow([np.abs(coords.lat),np.abs(coords.lon),st,ref_lat,ref_lon,tuple(center_temps)])
 					image_num += 1
 					time.sleep(.01)   
 				num += 1
-				print(num)
 				
 			frameCooldown = frameCooldown + 1
 				

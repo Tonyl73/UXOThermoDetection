@@ -12,6 +12,7 @@ def prepare_directory():
         location = f'/home/nvidia/Documents/Waimanalo/data{test_num}/'
         file_rgb = location +'RGB/'
         file_ir = location + 'IR/'
+        file_extra = location + 'extra/'
         file_temperature = location +'Temperatures/'
         csv_file = location + '/lat_lon.csv'
         if os.path.exists(location):
@@ -22,6 +23,7 @@ def prepare_directory():
                 os.mkdir(file_ir)
                 os.mkdir(file_rgb)
                 os.mkdir(file_temperature)
+                os.mkdir(file_extra)
                 dir_made = True
             else:
                 continue
@@ -30,8 +32,9 @@ def prepare_directory():
             os.mkdir(file_ir)
             os.mkdir(file_rgb)
             os.mkdir(file_temperature)
+            os.mkdir(file_extra)
             dir_made = True
-    return test_num,file_ir,file_rgb,file_temperature,csv_file
+    return test_num,file_ir,file_rgb,file_temperature,file_extra,csv_file
 
 def show_screens(image1,image2):
 
@@ -41,9 +44,9 @@ def show_screens(image1,image2):
 	y_pos1 = 0 
 	y_pos2 = img_height
 	cv2.imshow("RGB feed",image1) 
-	cv2.moveWindow("RGB feed",x_pos,y_pos1)
+	#cv2.moveWindow("RGB feed",x_pos,y_pos1)
 	cv2.imshow('IR feed',image2)
-	cv2.moveWindow('IR feed',x_pos,y_pos2)
+	#cv2.moveWindow('IR feed',x_pos,y_pos2)
     
   
 

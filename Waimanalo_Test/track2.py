@@ -15,8 +15,8 @@ import serial
 # Initialize GPS and Arduino ports, make sure to close the Arduino port prior to opening GPS
 
 try:
-    ard_port = serial.Serial('/dev/ttyACM1', baudrate=115200, timeout=1)
-    gps_port = serial.Serial('/dev/ttyACM2', baudrate=38400, timeout=1)
+    ard_port = serial.Serial('/dev/device_ECDA3B60BB24', baudrate=115200, timeout=1)
+    gps_port = serial.Serial('/dev/device_01a9', baudrate=38400, timeout=1)
     gps = UbloxGps(gps_port)
 
 
@@ -26,7 +26,7 @@ except serial.SerialException as e:
 
 
 
-test_num,folder_ir,folder_rgb, folder_temperatures,csv_filename = clean.prepare_directory()
+test_num,folder_ir,folder_rgb, folder_temperatures,folder_extra, csv_filename = clean.prepare_directory()
 
 
 
@@ -98,9 +98,18 @@ try:
 			
 			if ir_stream_ret and rgb_stream_ret:
 				
-				grey_scale_image,BOXES = track.detect_object_IR(grey_scale_image)
+				#grey_scale_image1 =track.enhance_greyscale(grey_scale_image,frame1)
+				
+				#cv2.imshow('enhanced', grey_scale_image1)
+				
+				grey_scale_image2 = track.mask_green(frame2,grey_scale_image)
+				
+				cv2.imshow('no green', grey_scale_image2)
+				
+				grey_scale_image ,BOXES, centers  = track.detect_object_IR(grey_scale_image2 ,grey_scale_image)
+				
 				#FRAME_IR_COOL = track.detect_object_IR_cool(frame1)
-				#FRAME_RGB = track.detect_object_RGB(frame2)
+				
 				
 				clean.show_screens(frame2,grey_scale_image)
 				
@@ -109,12 +118,20 @@ try:
 				ts = time.time()	
 				st = datetime.datetime.fromtimestamp(ts).strftime('%d-%m-%Y_%H-%M-%S')
 				
-				print(f'Frame #{frameCooldown}')
-				print('Working')
+				#print(f'Frame #{frameCooldown}')
+				#print('Working')
 				print(f'Boxes:{BOXES}')
-				print(f'Corners: {corners}')
-				print(f'Locations: {objectLocations}')
+				print(f'Centers: {centers}')
+				print(f'frame1 {np.shape(frame1)}')
 				
+				#print(f'Corners: {corners}')
+				#print(f'Locations: {objectLocations}')
+				center_temps = []
+				
+				for i in range(0, len(centers)):
+					temperature = frame1[centers[i][1]][centers[i][0]]/100 - 273.15
+					print(f'Temperature of box {i}: {temperature}')
+					center_temps.append(temperature)
 				
 				DETECTION = ((len(BOXES) != 0) and (frameCooldown > 60))
 				print(f'Detection: {DETECTION}')
@@ -122,23 +139,33 @@ try:
 				if cv2.waitKey(1) & 0xFF == ord('q'):
 					break
 				
-				if DETECTION:
+				'''if DETECTION:
 					goodDetection = input("Is this a valid detection?")
 					goodDetection = bool(goodDetection)
 					frameCooldown = 0
 
 					if goodDetection:
 						print("Sending to Arduino")
-						send_target_location()
+						send_target_location()'''
 
 				if num%10 == 0: #set interval between saved frames here
 					final_image_ir = folder_ir +f'Image #:{image_num}' + ".jpg"
 					final_image_rgb = folder_rgb + f'Image #:{image_num}' +  ".jpg"
 					final_temperature_frame = folder_temperatures + f'Image #:{image_num}' + '.png'
+					final_extra = folder_extra + f'Image #:{image_num}' +  ".jpg"
 					cv2.imwrite(final_image_ir,grey_scale_image)
 					cv2.imwrite(final_image_rgb,UNCROPPED)
 					cv2.imwrite(final_temperature_frame,frame1)
-					writer.writerow([coords.lat,coords.lon,st])
+					cv2.imwrite(final_extra, grey_scale_image2)
+					if coords.lat < 0:
+						ref_lat = 'S'
+					else:
+						ref_lat = 'N'
+					if coords.lon < 0:
+						ref_lon = 'W'
+					else:
+						ref_lon = 'E'
+					writer.writerow([np.abs(coords.lat),np.abs(coords.lon),st,ref_lat,ref_lon,tuple(center_temps)])
 					image_num += 1
 					time.sleep(.01)   
 				num += 1
@@ -150,7 +177,7 @@ try:
 except KeyboardInterrupt:
     pass
     
-clean.input_exif_data(folder_ir,folder_rgb,csv_filename)
+#clean.input_exif_data(folder_ir,folder_rgb,csv_filename)
 
 	 
 ard_port.close()
