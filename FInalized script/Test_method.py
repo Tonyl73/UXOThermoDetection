@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-scale_factor = 0.67
+
 
 def find_corners(box_array):
     num_boxes = len(box_array)
@@ -16,58 +16,74 @@ def find_corners(box_array):
 		
 
 
-def crop_and_scale_rgb(RGB_IMAGE):
+def crop_and_scale_rgb(RGB_IMAGE,SCALE_FACTOR = 0.67):
     
     IMAGE = RGB_IMAGE
     HEIGTH, WIDTH = IMAGE.shape[:2]
-
-   
-    NEW_WIDTH = int(WIDTH * scale_factor)
-    NEW_HEIGTH = int(HEIGTH * scale_factor)
+    NEW_WIDTH = int(WIDTH * SCALE_FACTOR)
+    NEW_HEIGTH = int(HEIGTH * SCALE_FACTOR)
     resized_img = cv2.resize(IMAGE, (NEW_WIDTH, NEW_HEIGTH), interpolation=cv2.INTER_AREA)
-
     x_start = (NEW_WIDTH - 640) // 2
     y_start = (NEW_HEIGTH - 512) // 2
     CROPPED_IMAGE = resized_img[y_start:y_start+512, x_start:x_start+640]
     return CROPPED_IMAGE,IMAGE
+
+def homographic_transform(IMAGE_IR,IMAGE_RGB):
+	source_points = np.array([[420,114],[1425,114],[420,918],[1425,918]])
+	dest_points = np.array([[0,0],[640,0],[0,512],[640,512]])
+	homo, _ = cv2.findHomography(source_points,dest_points)
+	output = cv2.warpPerspective(IMAGE_RGB,homo,(IMAGE_IR.shape[1],IMAGE_IR.shape[0]))
+	return output
     
   
 
-def detect_object_IR(INPUT_IMAGE,CANVAS_IMAGE):
-   
-   
-    SMOOTHED_IMAGE = cv2.medianBlur(INPUT_IMAGE, 3)
-
-    #GREYSCALE_IMAGE = cv2.equalizeHist(SMOOTHED_IMAGE)
-    #cv2.imshow('Smoothed Image',SMOOTHED_IMAGE)
-    avg_val = np.mean(SMOOTHED_IMAGE)
+def detect_object_IR(INPUT_IMAGE_IR,INPUT_TEMPERATURES,CANVAS_IMAGE):
+	
     
-    print(avg_val)
    
-    threshold_val =  np.percentile(SMOOTHED_IMAGE,90)
-
-    print(threshold_val)
-    _, BLACK_AND_WHITE_IMAGE = cv2.threshold(SMOOTHED_IMAGE, threshold_val, 255, cv2.THRESH_BINARY_INV)
-    BLACK_AND_WHITE_IMAGE2 = cv2.adaptiveThreshold(SMOOTHED_IMAGE,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,801,-(avg_val*.3))
-    _, BLACK_AND_WHITE_IMAGE3 = cv2.threshold(SMOOTHED_IMAGE, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
-    FINAL_IMG = BLACK_AND_WHITE_IMAGE2 - BLACK_AND_WHITE_IMAGE - BLACK_AND_WHITE_IMAGE3
-    _,INITIAL_CONTOURS, _ = cv2.findContours(FINAL_IMG, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+	#SMOOTH OUT THE IMAGE AND FIND AVERAGE VALUE
+    SMOOTHED_IMAGE = cv2.medianBlur(INPUT_IMAGE_IR, 3)
+    AVERAGE_VALUE = np.mean(INPUT_TEMPERATURES)
+    STANDARD_DEVIATION = np.std(INPUT_TEMPERATURES)
+    TEMPS_IMAGE = INPUT_IMAGE_IR.copy()
+    TEMPS_IMAGE[TEMPS_IMAGE < (AVERAGE_VALUE + STANDARD_DEVIATION)] = 0
     
-    
-    cv2.imshow('thresh',BLACK_AND_WHITE_IMAGE)
-    cv2.imshow('thresh adapt',BLACK_AND_WHITE_IMAGE2)
-    cv2.imshow('thresh otsu',BLACK_AND_WHITE_IMAGE3)
-    cv2.imshow('final',FINAL_IMG)
+    print(AVERAGE_VALUE)
    
+   #DETERMINE THRESHOLD VALUE BASED ON THE TOP 75 PERCENTILE
+    THRESHOLD_VALUE =  np.percentile(SMOOTHED_IMAGE,85)
+    print(THRESHOLD_VALUE)
     
-    LARGE_AREA_CONTOURS = [contour for contour in INITIAL_CONTOURS if 300 < cv2.contourArea(contour) < 7000]
+    #APPLY REGULAR,UTSO,AND ADAPTIVE THRESHOLDING 
+    _,REGULAR_THRESHOLD_IMAGE = cv2.threshold(SMOOTHED_IMAGE, THRESHOLD_VALUE, 255, cv2.THRESH_BINARY_INV)
+    ADAPTIVE_THRESHOLD_IMAGE = cv2.adaptiveThreshold(SMOOTHED_IMAGE,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,1201,-(np.mean(SMOOTHED_IMAGE)*.3))
+    _, OTSU_THRESHOLD_IMAGE = cv2.threshold(SMOOTHED_IMAGE, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    
+    #SUTRACT ALL THRESHOLDING FOR FINAL IMAGE
+    FINAL_THRESHOLD = ADAPTIVE_THRESHOLD_IMAGE - REGULAR_THRESHOLD_IMAGE - OTSU_THRESHOLD_IMAGE
+    _,FINAL_THRESHOLD = cv2.threshold(FINAL_THRESHOLD, 250, 255, cv2.THRESH_BINARY)
+    #ERODE THEN USE OPENING ON FINAL IMAGE
+    KERNEL = cv2.getStructuringElement(cv2.MORPH_RECT,(5,5))
+    FINAL_IMAGE = cv2.morphologyEx(FINAL_THRESHOLD,cv2.MORPH_OPEN,KERNEL)
+    
+    #FIND CONTOURS
+    _,INITIAL_CONTOURS, _ = cv2.findContours(FINAL_IMAGE, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    
+    
+    cv2.imshow('thresh',REGULAR_THRESHOLD_IMAGE)
+    cv2.imshow('thresh adapt',ADAPTIVE_THRESHOLD_IMAGE)
+    cv2.imshow('thresh otsu',OTSU_THRESHOLD_IMAGE)
+    cv2.imshow('final',FINAL_IMAGE)
+    cv2.imshow('temps',TEMPS_IMAGE)
+    
+    LARGE_AREA_CONTOURS = [cont for cont in INITIAL_CONTOURS if 300 < cv2.contourArea(cont) < 7000]
 
-    print (len(LARGE_AREA_CONTOURS))
+    
 
-    FINAL_CONTOURS = []
+   
     box_locations = []
     centers = []
-
+    print(f'final cont {len(LARGE_AREA_CONTOURS)}')
     
     for contour in LARGE_AREA_CONTOURS:
         x, y, w, h = cv2.boundingRect(contour)
@@ -85,48 +101,13 @@ def detect_object_IR(INPUT_IMAGE,CANVAS_IMAGE):
         box_locations.append(box)
         cv2.putText(CANVAS_IMAGE, f"Box {i}" , tuple(box[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,255,0), 1)
         cv2.drawContours(CANVAS_IMAGE, [box], 0, (0, 0, 255), 2)
-
-    return CANVAS_IMAGE, box_locations, centers
-
-
-
-def detect_object_IR_cool(IMAGE):
     
-    SMOOTHED_IMAGE = cv2.medianBlur(IMAGE, 3)
+    CANVAS_IMAGE_COLOR = cv2.applyColorMap(CANVAS_IMAGE, cv2.COLORMAP_HOT)
 
-    GREYSCALE_IMAGE = cv2.equalizeHist(SMOOTHED_IMAGE)
+    return CANVAS_IMAGE, box_locations, centers, CANVAS_IMAGE_COLOR
 
-    _, BLACK_AND_WHITE_IMAGE_COOL = cv2.threshold(GREYSCALE_IMAGE, 20, 250, cv2.THRESH_BINARY_INV)
 
-    _,INITIAL_CONTOURS_COOL, _ = cv2.findContours(BLACK_AND_WHITE_IMAGE_COOL, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
-    cv2.imshow('cool',BLACK_AND_WHITE_IMAGE_COOL)
-
-    LARGE_AREA_CONTOURS_COOL = [contour for contour in INITIAL_CONTOURS_COOL if 800 < cv2.contourArea(contour) < 7000]
-
-    FINAL_CONTOURS = []
-
-    BEST_RECTANGLE = .4
-
-    for contour in LARGE_AREA_CONTOURS_COOL:
-        x, y, w, h = cv2.boundingRect(contour)
-        ASPECT_RATIO = max(w, h) / min(w, h)
-        AREA = cv2.contourArea(contour)
-        BOUNDING_BOX_AREA = w * h
-        RECTANGLE_SCORE = (AREA / BOUNDING_BOX_AREA) * (1 / ASPECT_RATIO)
-
-        if RECTANGLE_SCORE > BEST_RECTANGLE:
-         
-            print('shaded score' ,RECTANGLE_SCORE)
-            FINAL_CONTOURS = [contour] 
-
-    print(len(FINAL_CONTOURS))
-
-    for contour in FINAL_CONTOURS:
-        rect = cv2.minAreaRect(contour)
-        box = np.int0(cv2.boxPoints(rect))
-        cv2.drawContours(IMAGE, [box], 0, (0, 0, 255), 2)
-    return IMAGE
 
 def enhance_greyscale(greyscale_img, temp_img, gradient_scale=150,delta=20):
 

@@ -5,6 +5,7 @@ from geopy.distance import geodesic
 import transformations as trans
 import new_method as track
 import cv2
+import threading 
 # Can also use SPI here - import spidev
 # I2C is not supported
 try:
@@ -22,6 +23,20 @@ IR.set(cv2.CAP_PROP_FRAME_WIDTH, 640) #use 320 for Boson 320
 IR.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YU12'))
 IR.set(cv2.CAP_PROP_CONVERT_RGB, 0)
 
+current_lat, current_lon = None, None
+
+def collect_lat_lon():
+	global gps
+	global current_lat
+	global current_lon
+	while True:
+		coords = gps.geo_coords()
+		if coords:
+			current_lat = coords.lat
+			current_lon = coords.lon
+			
+thread = threading.Thread(target= collect_lat_lon,daemon = True)
+thread.start()
 
 
 def send_target_location():
@@ -91,12 +106,11 @@ try:
 	if mode == '1':
 		while pointA == ():
 			if input('input 1 to set first point ') == '1':
-				coords = gps.geo_coords()
-				pointA = (coords.lat, coords.lon)
+				pointA = (current_lat, current_lon)
 		while pointB == ():
 			if input('input 1 to set second point'):
 				coords = gps.geo_coords()
-				pointB = (coords.lat, coords.lon)
+				pointB = (current_lat, current_lon)
 		
 		print(f"bearing :{calculate_bearing(pointA,pointB)} degrees")
 		print(f"distance: {geodesic(pointA,pointB).meters} meters")
@@ -105,8 +119,8 @@ try:
 	
 	elif mode == '2':		
 	
-		coords = gps.geo_coords()
-		pointA = (coords.lat, coords.lon)
+	
+		pointA = (current_lat, current_lon)
 		point_2_found = False
 		while point_2_found == False:#record indefinitely (until user presses q), replace with "while True"
 			ir_stream_ret, frame1 = IR.read()
